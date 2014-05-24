@@ -10,13 +10,14 @@ using namespace node;
 typedef struct campjs {
   char * result;
   char * javascript;
+  char * arg;
   Persistent<Function, CopyablePersistentTraits<Function> > callback;
   Isolate * isolate;
 } campjs;
 
 namespace NodeOS
 {
-  char * doSomeThing(void* args) {
+  char * doSomeThing(void* args, char *arg) {
     Isolate* isolate = Isolate::New();
     {
         Locker locker(isolate);
@@ -33,10 +34,17 @@ namespace NodeOS
             script->Run();
 
             Handle<Value> v = context->Global()->Get(String::NewFromUtf8(isolate, "exports"));
+            Handle<Function> exports = Handle<Function>::Cast(v);
 
-            String::Utf8Value val(v->ToString());
+            Handle<String> sarg = String::NewFromUtf8(isolate, arg);
+            Handle<Value> locals[1];
+            locals[0] = sarg;
 
-            return *val;
+            Handle<Value> ret = exports->Call(Undefined(isolate), 1, locals);
+
+            String::Utf8Value val(ret->ToString());
+
+            return strdup(*val);
         }
 
     }
@@ -45,7 +53,7 @@ namespace NodeOS
 
   void doing_work (uv_work_t *req) {
     campjs *a = (campjs*) req->data;
-    a->result = doSomeThing(a->javascript);
+    a->result = doSomeThing(a->javascript, a->arg);
   }
 
   void after_doing_work (uv_work_t *req, int i) {
@@ -68,15 +76,16 @@ namespace NodeOS
 
     campjs * cjs = new campjs;
     cjs->javascript = strdup(*arg);
-    // cjs->callback = Persistent<Function>::Cast(args[1]);
     req->data = cjs;
 
-    Local<Function> cb = Local<Function>::Cast(args[1]);
-    Persistent<Function, CopyablePersistentTraits<Function> > value(args.GetIsolate(), cb);
+    Local<Function> cb = Local<Function>::Cast(args[2]);
+    Persistent<Function, CopyablePersistentTraits<Function> > callback(args.GetIsolate(), cb);
 
-    cjs->callback = value;
+    cjs->callback = callback;
     cjs->isolate  = args.GetIsolate();
-//    Persistent<v8::Number> context = Persistent<v8::Number>(args.GetIsolate(), args[1]->ToNumber());
+
+    String::Utf8Value val(args[1]->ToString());
+    cjs->arg = strdup(*val);
 
     uv_queue_work(uv_default_loop(), req, doing_work, after_doing_work);
   }
