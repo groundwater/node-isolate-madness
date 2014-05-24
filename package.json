@@ -1,0 +1,8 @@
+{
+  "name": "src-isolates",
+  "version": "0.0.0",
+  "description": "Isolate madhouse",
+  "author": "Jacob Groundwater <groundwater@gmail.com>",
+  "license": "MIT",
+  "main": "build/Release/binding.node"
+}
